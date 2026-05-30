@@ -68,7 +68,7 @@
   }
 
   .step-dot.done {
-    @apply bg-gold-700;
+    @apply bg-yellow-700;
   }
 
   .gold-text {
