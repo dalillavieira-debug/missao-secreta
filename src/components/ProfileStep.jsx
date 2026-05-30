@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react'
 import { determineProfile } from '../data/profiles'
-import { saveParticipant, getStorageData } from '../utils/storage'
+import { upsertParticipant } from '../lib/db'
 import StepBar from './StepBar'
 
 export default function ProfileStep({ participant, onDone }) {
   const [profile, setProfile] = useState(null)
-  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     const p = determineProfile(
@@ -14,13 +13,12 @@ export default function ProfileStep({ participant, onDone }) {
     )
     setProfile(p)
 
-    // Salva participante no localStorage
-    saveParticipant({
+    upsertParticipant({
       name: participant.name,
       journeyAnswers: participant.journeyAnswers,
       quizScore: participant.quizScore,
+      quizAnswers: participant.quizAnswers,
       profileId: p.id,
-      completedAt: new Date().toISOString(),
     })
   }, [])
 

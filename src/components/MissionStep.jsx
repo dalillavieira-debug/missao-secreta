@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getAssignment, isDrawDone } from '../utils/storage'
+import { getAssignment, checkDrawDone } from '../lib/db'
 import StepBar from './StepBar'
 
 export default function MissionStep({ participant, onBack }) {
@@ -8,16 +8,15 @@ export default function MissionStep({ participant, onBack }) {
 
   useEffect(() => {
     checkAssignment()
-    // Verifica a cada 5 segundos se o sorteio foi feito
     const interval = setInterval(checkAssignment, 5000)
     return () => clearInterval(interval)
   }, [])
 
-  function checkAssignment() {
-    const done = isDrawDone()
+  async function checkAssignment() {
+    const done = await checkDrawDone()
     setDrawReady(done)
     if (done) {
-      const a = getAssignment(participant?.name)
+      const a = await getAssignment(participant?.name)
       setAssignment(a)
     }
   }

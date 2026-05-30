@@ -6,8 +6,8 @@ import ProfileStep from './components/ProfileStep'
 import MissionStep from './components/MissionStep'
 import LeaderView from './components/LeaderView'
 import { getCurrentParticipant, setCurrentParticipant } from './utils/storage'
+import { upsertParticipant } from './lib/db'
 
-// Etapas do fluxo do participante
 const STEPS = {
   START: 'start',
   JOURNEY: 'journey',
@@ -21,15 +21,12 @@ export default function App() {
   const [step, setStep] = useState(STEPS.START)
   const [participant, setParticipant] = useState(null)
 
-  // Restaura sessão ao recarregar
   useEffect(() => {
     const saved = getCurrentParticipant()
     if (saved) {
       setParticipant(saved)
-      if (saved.assignedTo) {
+      if (saved.profile) {
         setStep(STEPS.MISSION)
-      } else if (saved.profile) {
-        setStep(STEPS.PROFILE)
       } else if (saved.quizAnswers) {
         setStep(STEPS.PROFILE)
       } else if (saved.journeyAnswers) {
@@ -40,7 +37,6 @@ export default function App() {
     }
   }, [])
 
-  // Verifica rota /lider na URL
   useEffect(() => {
     if (window.location.pathname === '/lider' || window.location.search.includes('lider')) {
       setStep(STEPS.LEADER)
@@ -51,6 +47,7 @@ export default function App() {
     const updated = { ...participant, ...data }
     setParticipant(updated)
     setCurrentParticipant(updated)
+    upsertParticipant(updated)
     return updated
   }
 
@@ -58,6 +55,7 @@ export default function App() {
     const p = { name, startedAt: new Date().toISOString() }
     setParticipant(p)
     setCurrentParticipant(p)
+    upsertParticipant(p)
     setStep(STEPS.JOURNEY)
   }
 

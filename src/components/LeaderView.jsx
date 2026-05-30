@@ -3,7 +3,7 @@ import {
   Users, BarChart2, Award, Shuffle, Eye, EyeOff,
   RefreshCw, ArrowLeft, Trash2, CheckCircle
 } from 'lucide-react'
-import { getParticipants, saveDraw, resetSession, isDrawDone, getStorageData } from '../utils/storage'
+import { getParticipants, saveDrawPairs, deleteAllParticipants } from '../lib/db'
 import { performDraw, getWordFrequency } from '../utils/draw'
 import { spiritualProfiles } from '../data/profiles'
 
@@ -32,43 +32,45 @@ export default function LeaderView({ onBack }) {
   const [confirmReset, setConfirmReset] = useState(false)
   const [drawAnimating, setDrawAnimating] = useState(false)
 
-  function loadData() {
-    const data = getStorageData()
-    setParticipants(data.participants || [])
-    setDrawDone(data.drawDone || false)
-    if (data.pairs) setPairs(data.pairs)
+  async function loadData() {
+    const data = await getParticipants()
+    setParticipants(data)
+    const done = data.some((p) => p.assignedTo)
+    setDrawDone(done)
+    if (done) {
+      setPairs(data.filter((p) => p.assignedTo).map((p) => ({ from: p.name, to: p.assignedTo })))
+    }
   }
 
   useEffect(() => {
     loadData()
-    const interval = setInterval(loadData, 3000)
+    const interval = setInterval(loadData, 5000)
     return () => clearInterval(interval)
   }, [])
 
-  function handleDraw() {
+  async function handleDraw() {
     if (participants.length < 2) return
     setDrawAnimating(true)
-    setTimeout(() => {
+    setTimeout(async () => {
       const names = participants.map((p) => p.name)
       const result = performDraw(names)
       if (result) {
+        await saveDrawPairs(result)
         setPairs(result)
-        saveDraw(result)
         setDrawDone(true)
-        loadData()
+        await loadData()
       }
       setDrawAnimating(false)
     }, 1500)
   }
 
-  function handleReset() {
+  async function handleReset() {
     if (confirmReset) {
-      resetSession()
+      await deleteAllParticipants()
       setParticipants([])
       setPairs([])
       setDrawDone(false)
       setConfirmReset(false)
-      loadData()
     } else {
       setConfirmReset(true)
       setTimeout(() => setConfirmReset(false), 5000)
@@ -77,7 +79,7 @@ export default function LeaderView({ onBack }) {
 
   const wordFreq = getWordFrequency(participants)
   const quizRanking = [...participants]
-    .filter((p) => p.quizScore !== undefined)
+    .filter((p) => p.quizScore !== undefined && p.quizScore !== null)
     .sort((a, b) => (b.quizScore || 0) - (a.quizScore || 0))
 
   const profileCounts = participants.reduce((acc, p) => {
@@ -159,7 +161,7 @@ export default function LeaderView({ onBack }) {
             {participants.length === 0 ? (
               <EmptyState text="Nenhum participante ainda. Aguarde as pessoas responderem." />
             ) : (
-              participants.map((p, i) => (
+              participants.map((p) => (
                 <div key={p.name} className="card flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-gold-500/30 to-gold-600/20 flex items-center justify-center flex-shrink-0 font-bold text-gold-400 text-sm">
                     {p.name[0]?.toUpperCase()}
