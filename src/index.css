@@ -48,7 +48,7 @@
   .option-btn {
     @apply w-full text-left px-4 py-3 rounded-2xl border border-dark-600
            bg-dark-700 hover:bg-dark-600 hover:border-gold-500/50
-           transition-all duration-200 active:scale-98 text-sm font-medium;
+           transition-all duration-200 active:scale-95 text-sm font-medium;
   }
 
   .option-btn.selected {
