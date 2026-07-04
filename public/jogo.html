@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jogo dos Casais — Painel do Mediador</title>
+<style>
+  :root {
+    --surface-2: #ffffff;
+    --surface-1: #f1efe8;
+    --surface-0: #f7f6f2;
+    --text-primary: #1a1a1a;
+    --text-secondary: #5f5e5a;
+    --text-muted: #888780;
+    --text-accent: #185fa5;
+    --accent: #378add;
+    --border: #dedcd3;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0 auto;
+    padding: 1.25rem;
+    background: var(--surface-0);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    line-height: 1.6;
+    max-width: 480px;
+  }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+  .sub { font-size: 13px; color: var(--text-muted); margin: 0 0 1rem; }
+  button {
+    font-family: inherit;
+    font-size: 14px;
+    padding: 10px 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    color: var(--text-primary);
+  }
+  button:active { transform: scale(0.98); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  #tabs { display:flex; gap:8px; margin-bottom:1.25rem; }
+  #tabs button { flex:1; font-weight:500; }
+  #tabs button.active { border-color: var(--accent); color: var(--text-accent); font-weight: 600; }
+  .card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 12px;
+  }
+  .box { background: var(--surface-1); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; }
+  .muted { font-size: 12px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<h1>Jogo dos casais — painel do mediador</h1>
+<p class="sub">Só você (mediador) usa esta tela. Os casais respondem em voz alta / no papel.</p>
+
+<div id="tabs">
+  <button data-tab="f1" class="active">Fase 1</button>
+  <button data-tab="f2">Fase 2</button>
+  <button data-tab="f3">Desempate</button>
+</div>
+
+<!-- FASE 1 -->
+<div id="panel-f1">
+  <p class="sub">3 rodadas · 2 casais por rodada · 3 versículos por rodada · vence quem completar mais</p>
+  <div id="matches"></div>
+</div>
+
+<!-- FASE 2 -->
+<div id="panel-f2" style="display:none">
+  <div class="box">
+    <p style="font-size:13px;color:var(--text-secondary);margin:0 0 8px;font-weight:500">Placar da fase final</p>
+    <div id="scoreboard" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px"></div>
+    <p class="muted" style="margin:10px 0 0">Toque no nome para renomear o casal.</p>
+  </div>
+  <div id="stories"></div>
+</div>
+
+<!-- DESEMPATE -->
+<div id="panel-f3" style="display:none">
+  <div class="box" style="padding:1rem 1.25rem">
+    <p style="font-weight:500;margin:0 0 6px">Quiz sincronizado do casal</p>
+    <p style="font-size:14px;color:var(--text-secondary);margin:0">Cada cônjuge escreve a resposta em um papel, ao mesmo tempo, sem ver o do outro. Depois mostram juntos. O casal com mais respostas iguais vence.</p>
+  </div>
+  <div id="tiebreak"></div>
+</div>
+
+<!-- Reiniciar -->
+<button id="resetAll" style="width:100%;margin-top:8px;color:var(--text-secondary)">Zerar todos os pontos</button>
+
+<script>
+const store = {
+  get(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } },
+  set(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
+};
+
+// ---------- DADOS ----------
+const verses = [
+  [
+    { ref: "Gênesis 2:24", text: "Por isso, deixará o homem pai e mãe, e ___ com sua mulher, e serão os dois uma só carne.", answer: "unir-se-á" },
+    { ref: "Eclesiastes 4:9", text: "Melhor é serem dois do que um, porque têm melhor paga do seu ___.", answer: "trabalho" },
+    { ref: "1 Coríntios 13:4", text: "O amor é paciente, o amor é ___; não tem inveja, não se vangloria, não se orgulha.", answer: "bondoso" }
+  ],
+  [
+    { ref: "Provérbios 18:22", text: "Quem encontra uma esposa encontra uma coisa boa e recebe o favor do ___.", answer: "Senhor" },
+    { ref: "Cantares 8:7", text: "Nem muitas águas podem apagar o amor, nem os rios afogá-lo. Se alguém oferecesse todos os bens de sua casa para comprar o amor, seria totalmente ___.", answer: "desprezado" },
+    { ref: "Efésios 5:25", text: "Maridos, amem suas esposas, assim como Cristo amou a igreja e ___ a si mesmo por ela.", answer: "entregou" }
+  ],
+  [
+    { ref: "Colossenses 3:14", text: "Acima de tudo isso, revistam-se do amor, que é o elo perfeito da ___.", answer: "perfeição" },
+    { ref: "Rute 1:16", text: "Onde quer que você for, eu irei, e onde quer que morar, eu morarei. O seu povo será o meu povo, e o seu Deus será o meu ___.", answer: "Deus" },
+    { ref: "Marcos 10:9", text: "Portanto, o que Deus uniu, ninguém ___.", answer: "separe" }
+  ]
+];
+
+const stories = [
+  { title: "História 1", synopsis: "Isaque e Rebeca no poço (Gênesis 24): o servo de Abraão viaja até Harã em busca de esposa para Isaque, encontra Rebeca junto ao poço, ela tira água para ele e para os camelos, e depois viaja para se casar com Isaque, que a ama.", tips: "Elementos para mimicar: viagem em camelo, poço, tirar água, encontro e casamento." },
+  { title: "História 2", synopsis: "Ana ora por um filho no templo (1 Samuel 1): Ana sofre por não ter filhos, vai ao templo e ora chorando e em silêncio, movendo os lábios sem som, o sacerdote Eli acha que ela está bêbada, depois ela tem o filho Samuel e o dedica ao Senhor.", tips: "Elementos para mimicar: choro silencioso, lábios se movendo sem som, entrega de uma criança ao templo." },
+  { title: "História 3", synopsis: "Davi e Abigail (1 Samuel 25): Davi, irritado com Nabal, parte com seus homens para se vingar; Abigail, esposa de Nabal, sai ao encontro dele levando presentes montada num jumento, se ajoelha e o convence a não derramar sangue; depois da morte de Nabal, Davi a toma como esposa.", tips: "Elementos para mimicar: montar um jumento, carregar presentes/cestas, ajoelhar-se implorando, espada sendo guardada." }
+];
+
+const questions = [
+  "Qual foi o primeiro presente que você deu ao seu cônjuge?",
+  "Qual é o prato favorito do seu cônjuge?",
+  "Se pudessem viajar para qualquer lugar juntos, para onde iriam?",
+  "Qual é o maior sonho do seu cônjuge para os próximos 5 anos?",
+  "Quem geralmente cede primeiro numa discussão?"
+];
+
+// ---------- FASE 1: RODADAS ----------
+const f1 = store.get("med_f1", verses.map(() => ({ a: 0, b: 0 }))); // [{a,b}]
+const matchesEl = document.getElementById("matches");
+verses.forEach((round, i) => {
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `
+    <p style="font-weight:600;margin:0 0 10px">Rodada ${i + 1} · casal A vs casal B</p>
+    <div class="vlist"></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+      <button class="ptA" style="flex:1">+1 casal A (<span class="scA">${f1[i].a}</span>)</button>
+      <button class="ptB" style="flex:1">+1 casal B (<span class="scB">${f1[i].b}</span>)</button>
+    </div>`;
+  const vlist = card.querySelector(".vlist");
+  round.forEach((v, j) => {
+    const row = document.createElement("div");
+    row.style.cssText = "padding:8px 0;border-top:1px solid var(--border)";
+    if (j === 0) row.style.borderTop = "none";
+    row.innerHTML = `
+      <p class="muted" style="margin:0 0 4px">${v.ref}</p>
+      <p style="font-size:14px;margin:0 0 6px;line-height:1.5">${v.text}</p>
+      <button class="reveal" style="font-size:13px">Revelar resposta</button>
+      <p class="ans" style="display:none;font-size:14px;font-weight:600;color:var(--text-accent);margin:6px 0 0">${v.answer}</p>`;
+    const btn = row.querySelector(".reveal");
+    const ans = row.querySelector(".ans");
+    btn.onclick = () => { ans.style.display = "block"; btn.style.display = "none"; };
+    vlist.appendChild(row);
+  });
+  const scASpan = card.querySelector(".scA");
+  const scBSpan = card.querySelector(".scB");
+  card.querySelector(".ptA").onclick = () => { f1[i].a++; scASpan.textContent = f1[i].a; store.set("med_f1", f1); };
+  card.querySelector(".ptB").onclick = () => { f1[i].b++; scBSpan.textContent = f1[i].b; store.set("med_f1", f1); };
+  matchesEl.appendChild(card);
+});
+
+// ---------- FASE 2: PLACAR + HISTÓRIAS ----------
+const teamNames = store.get("med_names", ["Casal 1", "Casal 2", "Casal 3"]);
+const teamScores = store.get("med_scores", [0, 0, 0]);
+const scoreboard = document.getElementById("scoreboard");
+function renderScoreboard() {
+  scoreboard.innerHTML = "";
+  teamNames.forEach((name, i) => {
+    const c = document.createElement("div");
+    c.style.cssText = "background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:8px;text-align:center";
+    c.innerHTML = `
+      <p class="tname" data-i="${i}" style="font-size:12px;color:var(--text-muted);margin:0;cursor:pointer">${name}</p>
+      <p style="font-size:20px;font-weight:600;margin:2px 0">${teamScores[i]}</p>
+      <div style="display:flex;gap:4px">
+        <button class="subpt" data-i="${i}" style="flex:1;padding:6px 0;font-size:14px">−</button>
+        <button class="addpt" data-i="${i}" style="flex:1;padding:6px 0;font-size:14px">+</button>
+      </div>`;
+    scoreboard.appendChild(c);
+  });
+  scoreboard.querySelectorAll(".addpt").forEach(b => b.onclick = () => {
+    teamScores[b.dataset.i]++; store.set("med_scores", teamScores); renderScoreboard();
+  });
+  scoreboard.querySelectorAll(".subpt").forEach(b => b.onclick = () => {
+    const i = b.dataset.i; if (teamScores[i] > 0) teamScores[i]--; store.set("med_scores", teamScores); renderScoreboard();
+  });
+  scoreboard.querySelectorAll(".tname").forEach(p => p.onclick = () => {
+    const i = p.dataset.i;
+    const novo = prompt("Nome do casal:", teamNames[i]);
+    if (novo && novo.trim()) { teamNames[i] = novo.trim(); store.set("med_names", teamNames); renderScoreboard(); }
+  });
+}
+renderScoreboard();
+
+const storiesEl = document.getElementById("stories");
+stories.forEach((s) => {
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `
+    <p style="font-weight:600;margin:0 0 8px">${s.title}</p>
+    <button class="flip" style="width:100%;margin-bottom:8px">Virar carta e ver a história</button>
+    <div class="content" style="display:none">
+      <p style="font-size:14px;line-height:1.6;margin:0 0 8px">${s.synopsis}</p>
+      <p class="muted" style="margin:0 0 10px">${s.tips}</p>
+      <div style="display:flex;align-items:center;gap:10px;padding-top:8px;border-top:1px solid var(--border)">
+        <button class="timerbtn" style="flex:1">Iniciar tempo (60s)</button>
+        <span class="timerout" style="font-size:20px;font-weight:600;min-width:44px;text-align:right">60</span>
+      </div>
+    </div>`;
+  const flipBtn = card.querySelector(".flip");
+  const content = card.querySelector(".content");
+  flipBtn.onclick = () => { content.style.display = "block"; flipBtn.style.display = "none"; };
+  const timerBtn = card.querySelector(".timerbtn");
+  const timerOut = card.querySelector(".timerout");
+  let seconds = 60, interval = null;
+  timerBtn.onclick = () => {
+    if (interval) {
+      clearInterval(interval); interval = null;
+      seconds = 60; timerOut.textContent = 60; timerBtn.textContent = "Iniciar tempo (60s)";
+      return;
+    }
+    timerBtn.textContent = "Reiniciar";
+    interval = setInterval(() => {
+      seconds--;
+      timerOut.textContent = seconds;
+      if (seconds <= 0) {
+        clearInterval(interval); interval = null;
+        timerBtn.textContent = "Tempo esgotado — reiniciar";
+        seconds = 60;
+      }
+    }, 1000);
+  };
+  storiesEl.appendChild(card);
+});
+
+// ---------- DESEMPATE ----------
+const tb = document.getElementById("tiebreak");
+questions.forEach((q, i) => {
+  const row = document.createElement("div");
+  row.style.cssText = "background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:12px 1rem;margin-bottom:8px";
+  row.innerHTML = `<p style="font-size:14px;margin:0">${i + 1}. ${q}</p>`;
+  tb.appendChild(row);
+});
+
+// ---------- RESET ----------
+document.getElementById("resetAll").onclick = () => {
+  if (!confirm("Zerar todos os pontos das fases 1 e 2?")) return;
+  ["med_f1", "med_scores"].forEach(k => localStorage.removeItem(k));
+  location.reload();
+};
+
+// ---------- ABAS ----------
+const tabs = document.querySelectorAll("#tabs button");
+const panels = { f1: document.getElementById("panel-f1"), f2: document.getElementById("panel-f2"), f3: document.getElementById("panel-f3") };
+tabs.forEach(t => {
+  t.onclick = () => {
+    Object.keys(panels).forEach(k => panels[k].style.display = (k === t.dataset.tab ? "block" : "none"));
+    tabs.forEach(tt => tt.classList.remove("active"));
+    t.classList.add("active");
+  };
+});
+</script>
+</body>
+</html>
